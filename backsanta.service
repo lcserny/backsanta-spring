@@ -1,0 +1,15 @@
+[Unit]
+Description=backsanta
+StartLimitBurst=10
+StartLimitIntervalSec=50
+
+[Service]
+Type=simple
+StandardOutput=journal
+WorkingDirectory=/home/leonardo
+ExecStart=/home/leonardo/backsanta-spring
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
