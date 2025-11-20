@@ -8,13 +8,15 @@ import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 @Slf4j
 @Service
 @AllArgsConstructor
 public class MatchesService {
 
-    private final Map<String, String> generatedMatches = Collections.synchronizedMap(new HashMap<>());
+    private final ConcurrentMap<String, String> generatedMatches = new ConcurrentHashMap<>();
     private final SecureRandom random = new SecureRandom();
 
     public List<NameTokenPair> generateMatches(Map<String, List<String>> names) {
@@ -37,10 +39,11 @@ public class MatchesService {
     }
 
     public String findTarget(String token) {
-        if (!generatedMatches.containsKey(token)) {
+        String value = generatedMatches.remove(token);
+        if (value == null) {
             throw new ErrorHandler.ClientException("No match found for token %s".formatted(token));
         }
-        return generatedMatches.remove(token);
+        return value;
     }
 
     public void clearGeneratedMatches() {
