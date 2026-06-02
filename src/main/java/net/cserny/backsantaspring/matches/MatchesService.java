@@ -27,15 +27,11 @@ public class MatchesService {
         for (int i = 0; i < 10; i++) {
             matchPairs = generateMatchesInternal(names);
             if (matchPairs.size() == names.size()) {
-                break;
+                return matchPairs;
             }
         }
 
-        if (matchPairs.size() != names.size()) {
-            throw new ErrorHandler.ClientException("Could not generate correct matches from input given");
-        }
-
-        return matchPairs;
+        throw new ErrorHandler.ClientException("Could not generate correct matches from input given");
     }
 
     public String findTarget(String token) {
@@ -83,12 +79,11 @@ public class MatchesService {
     }
 
     private void validateExclusions(Map<String, List<String>> names) {
-        List<String> allNames = names.keySet().stream().sorted().toList();
+        Set<String> allNames = names.keySet();
 
         for (Map.Entry<String, List<String>> entry : names.entrySet()) {
-            List<String> allExcludes = new ArrayList<>(entry.getValue());
+            Set<String> allExcludes = new HashSet<>(entry.getValue());
             allExcludes.add(entry.getKey());
-            Collections.sort(allExcludes);
 
             if (allNames.equals(allExcludes)) {
                 throw new ErrorHandler.ClientException("Exclude list for %s contains all names".formatted(entry.getKey()));
