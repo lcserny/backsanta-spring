@@ -10,10 +10,23 @@ import java.util.Map;
 
 public class MatchesApi {
 
-    public static class Routes {
+    public interface Routes {
 
-        public static final String MATCHES = "/matches";
-        public static final String MATCHES_FIND_MATCH = MATCHES + "/{token}";
+        String MATCHES = "/matches";
+        String MATCHES_FIND_MATCH = MATCHES + "/{token}";
+    }
+
+    public static class Events {
+
+        @NoArgsConstructor
+        @AllArgsConstructor
+        @Builder
+        @Data
+        public static class InitEvent {
+
+            private String token;
+            private boolean flag;
+        }
     }
 
     public static class Payload {
