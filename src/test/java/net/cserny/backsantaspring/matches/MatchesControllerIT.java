@@ -1,43 +1,40 @@
 package net.cserny.backsantaspring.matches;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import net.cserny.backsantaspring.Api.ApplicationError;
 import net.cserny.backsantaspring.TestConfiguration;
 import net.cserny.backsantaspring.matches.MatchesApi.Payload.NameTokenPair;
 import net.cserny.backsantaspring.matches.MatchesApi.Payload.TargetWrapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureRestTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.test.web.servlet.client.RestTestClient;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static net.cserny.backsantaspring.matches.MatchesApi.Routes.MATCHES;
 import static net.cserny.backsantaspring.matches.MatchesApi.Routes.MATCHES_FIND_MATCH;
 import static net.cserny.backsantaspring.matches.MatchesFixture.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.springframework.web.util.UriComponentsBuilder.fromUriString;
 
+@AutoConfigureRestTestClient
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, classes = {TestConfiguration.class})
 public class MatchesControllerIT {
 
     @Autowired
-    private TestRestTemplate restTemplate;
+    private RestTestClient restTestClient;
 
     @Test
     public void canGenerateLinks() {
-        ResponseEntity<List<NameTokenPair>> response = restTemplate.exchange(MATCHES, HttpMethod.POST, new HttpEntity<>(namesWrapper()), new ParameterizedTypeReference<>() {});
+        List<NameTokenPair> pairs = restTestClient.post().uri(MATCHES)
+                .body(namesWrapper())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(new ParameterizedTypeReference<List<NameTokenPair>>() {})
+                .returnResult().getResponseBody();
 
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        List<NameTokenPair> pairs = response.getBody();
         assertNotNull(pairs);
         assertEquals(3, pairs.size());
 
@@ -48,11 +45,14 @@ public class MatchesControllerIT {
     }
 
     @Test
-    public void exclusionsCannotExhaustAllNames() throws JsonProcessingException {
-        ResponseEntity<ApplicationError> response = restTemplate.exchange(MATCHES, HttpMethod.POST, new HttpEntity<>(exhaustedNamesWrapper()), new ParameterizedTypeReference<>() {});
+    public void exclusionsCannotExhaustAllNames() {
+        ApplicationError error = restTestClient.post().uri(MATCHES)
+                .body(exhaustedNamesWrapper())
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody(ApplicationError.class)
+                .returnResult().getResponseBody();
 
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        ApplicationError error = response.getBody();
         assertNotNull(error);
         assertThat(error.getDetail()).contains("contains all names");
     }
@@ -60,13 +60,13 @@ public class MatchesControllerIT {
     @Test
     public void canFindMatch() {
         NameTokenPair firstGenerated = generateAndGetFirst();
-        String url = fromUriString(MATCHES_FIND_MATCH).buildAndExpand(Map.of("token", firstGenerated.getToken())).toUriString();
 
-        ResponseEntity<TargetWrapper> response = restTemplate.exchange(url, HttpMethod.GET, null, new ParameterizedTypeReference<>() {},
-                firstGenerated.getName(), firstGenerated.getToken());
+        TargetWrapper wrapper = restTestClient.get().uri(MATCHES_FIND_MATCH, firstGenerated.getToken())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(TargetWrapper.class)
+                .returnResult().getResponseBody();
 
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        TargetWrapper wrapper = response.getBody();
         assertNotNull(wrapper);
         assertEquals("sabina", wrapper.getTarget());
     }
@@ -74,37 +74,49 @@ public class MatchesControllerIT {
     @Test
     public void canFindMatchOnlyOnce() {
         NameTokenPair firstGenerated = generateAndGetFirst();
-        String url = fromUriString(MATCHES_FIND_MATCH).buildAndExpand(Map.of("token", firstGenerated.getToken())).toUriString();
 
-        ResponseEntity<String> firstResponse = restTemplate.exchange(url, HttpMethod.GET, null, new ParameterizedTypeReference<>() {},
-                firstGenerated.getName(), firstGenerated.getToken());
-        assertEquals(HttpStatus.OK, firstResponse.getStatusCode());
+        restTestClient.get().uri(MATCHES_FIND_MATCH, firstGenerated.getToken())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(TargetWrapper.class)
+                .returnResult().getResponseBody();
 
-        ResponseEntity<ApplicationError> secondResponse = restTemplate.exchange(url, HttpMethod.GET, null, new ParameterizedTypeReference<>() {},
-                firstGenerated.getName(), firstGenerated.getToken());
-        assertEquals(HttpStatus.BAD_REQUEST, secondResponse.getStatusCode());
+        restTestClient.get().uri(MATCHES_FIND_MATCH, firstGenerated.getToken())
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody(ApplicationError.class)
+                .returnResult().getResponseBody();
     }
 
     @Test
     public void whenFindingMatchThrowIfNotFound() {
-        ResponseEntity<ApplicationError> response = restTemplate.exchange(MATCHES_FIND_MATCH, HttpMethod.GET, null, new ParameterizedTypeReference<>() {},
-                "my-from", "my-token");
+        ApplicationError error = restTestClient.get().uri(MATCHES_FIND_MATCH, "my-token")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody(ApplicationError.class)
+                .returnResult().getResponseBody();
 
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        ApplicationError error = response.getBody();
         assertNotNull(error);
         assertThat(error.getDetail()).contains("No match found for token");
     }
 
     @Test
     public void canClearMatches() {
-        ResponseEntity<Void> response = restTemplate.exchange(MATCHES, HttpMethod.DELETE, null, Void.class);
-        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        restTestClient.delete().uri(MATCHES)
+                .exchange()
+                .expectStatus().isNoContent()
+                .expectBody().isEmpty();
     }
 
     private NameTokenPair generateAndGetFirst() {
-        List<NameTokenPair> generated = restTemplate.exchange(MATCHES, HttpMethod.POST, new HttpEntity<>(simpleNamesWrapper()), new ParameterizedTypeReference<List<NameTokenPair>>() {}).getBody();
-        Collections.sort(generated);
+        List<NameTokenPair> generated = restTestClient.post().uri(MATCHES)
+                .body(simpleNamesWrapper())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(new ParameterizedTypeReference<List<NameTokenPair>>() {})
+                .returnResult().getResponseBody();
+        assertNotNull(generated);
+        generated.sort(NameTokenPair::compareTo);
         return generated.getFirst();
     }
 }
