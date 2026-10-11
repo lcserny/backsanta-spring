@@ -31,11 +31,10 @@ public class FileClientConfig {
                 // InputStream — the caller must close it to release the connection.
                 .configureMessageConverters(client -> client
                         .registerDefaults()
-                        .configureMessageConvertersList(converters ->
-                                converters.replaceAll(converter ->
-                                        converter instanceof ResourceHttpMessageConverter
-                                                ? new ResourceHttpMessageConverter(true)
-                                                : converter)))
+                        .configureMessageConvertersList(converters -> {
+                            converters.removeIf(c -> c instanceof ResourceHttpMessageConverter);
+                            converters.add(new ResourceHttpMessageConverter());
+                        }))
                 .build();
     }
 

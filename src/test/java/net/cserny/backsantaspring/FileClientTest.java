@@ -32,11 +32,11 @@ class FileClientTest {
             // Same as FileClientConfig: streaming reads for InputStreamResource.
             .configureMessageConverters(client -> client
                     .registerDefaults()
-                    .configureMessageConvertersList(converters ->
-                            converters.replaceAll(converter ->
-                                    converter instanceof ResourceHttpMessageConverter
-                                            ? new ResourceHttpMessageConverter(true)
-                                            : converter)));
+                    .configureMessageConvertersList(converters -> {
+                        converters.removeIf(c -> c instanceof ResourceHttpMessageConverter);
+                        converters.add(new ResourceHttpMessageConverter());
+                    }));
+
     private final MockRestServiceServer mockServer = MockRestServiceServer.bindTo(restClientBuilder).build();
     private final FileClient fileClient = HttpServiceProxyFactory
             .builderFor(RestClientAdapter.create(restClientBuilder.build()))
